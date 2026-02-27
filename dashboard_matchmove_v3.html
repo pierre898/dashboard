@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Stratégique — Matchmove</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a28;
+    --border: #2a2a3d;
+    --accent: #7c5cfc;
+    --accent2: #f7c948;
+    --accent3: #3ecf8e;
+    --danger: #ff4d6d;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font-mono); min-height:100vh; }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events:none; z-index:0;
+  }
+  .header {
+    padding: 32px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(12px);
+  }
+  .logo { font-family: var(--font-display); font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+  .header-meta { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+  .main { padding: 32px 40px; position:relative; z-index:1; }
+  .filters {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px;
+    padding: 20px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+  .filter-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+  select, .btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--font-mono); font-size: 13px;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    outline: none; transition: border-color .2s;
+  }
+  select:hover, select:focus { border-color: var(--accent); }
+  .btn { background: var(--accent); border-color: var(--accent); color: white; font-weight: 500; align-self: flex-end; padding: 9px 20px; }
+  .btn:hover { opacity: 0.85; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px 20px;
+    position: relative; overflow: hidden;
+    transition: transform .2s, border-color .2s;
+  }
+  .kpi-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .kpi-card::before { content: ''; position: absolute; top:0; left:0; right:0; height:3px; background: var(--accent-color, var(--accent)); }
+  .kpi-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+  .kpi-value { font-family: var(--font-display); font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .section { margin-bottom: 40px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .section-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+  .section-badge { font-size: 10px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+  .section-line { flex:1; height:1px; background: var(--border); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 1000px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .chart-title { font-size: 13px; color: var(--muted); margin-bottom: 16px; letter-spacing: 1px; text-transform: uppercase; }
+  .chart-wrap { position: relative; height: 280px; }
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .table-head h3 { font-size: 13px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  td { padding: 11px 16px; font-size: 13px; border-bottom: 1px solid rgba(42,42,61,0.5); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(124,92,252,0.05); }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .badge-good { background: rgba(62,207,142,0.15); color: var(--accent3); }
+  .badge-warn { background: rgba(247,201,72,0.15); color: var(--accent2); }
+  .badge-bad { background: rgba(255,77,109,0.15); color: var(--danger); }
+  .badge-purple { background: rgba(124,92,252,0.15); color: var(--accent); }
+  .badge-blue { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .alert-box { border-radius: 12px; padding: 24px; border: 1px solid; }
+  .alert-danger { background: rgba(255,77,109,0.08); border-color: rgba(255,77,109,0.3); }
+  .alert-warn { background: rgba(247,201,72,0.08); border-color: rgba(247,201,72,0.3); }
+  .alert-item { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .alert-item:last-child { margin-bottom: 0; }
+  .alert-icon { font-size: 18px; flex-shrink:0; margin-top:1px; }
+  .alert-text strong { display: block; font-family: var(--font-display); font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+  .alert-text span { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .tab { padding: 10px 18px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); transition: all .2s; background: none; border-top:none; border-left:none; border-right:none; white-space:nowrap; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .pill { padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+  .pill-up { background: rgba(62,207,142,0.2); color: var(--accent3); }
+  .pill-dn { background: rgba(255,77,109,0.2); color: var(--danger); }
+  .scatter-legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-size:11px; color: var(--muted); }
+  .legend-dot { width:10px; height:10px; border-radius:50%; }
+  .marge-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 4px; }
+  .marge-fill { height: 100%; border-radius: 3px; }
+  /* ANNULATIONS SPECIAL */
+  .ann-card { background: rgba(255,77,109,0.06); border: 1px solid rgba(255,77,109,0.2); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .ann-header { font-family:var(--font-display); font-size:16px; font-weight:700; color: var(--danger); margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+  .ann-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid rgba(255,77,109,0.1); font-size:13px; }
+  .ann-row:last-child { border:none; }
+  .ann-ca { color: var(--danger); font-weight:700; }
+  .ann-month { font-size:11px; color: var(--muted); }
+  /* PROVIDERS SALES */
+  .prov-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .prov-bar-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .prov-name { font-size:13px; min-width:160px; }
+  .prov-bar-wrap { flex:1; background:var(--border); border-radius:4px; height:8px; }
+  .prov-bar-fill { height:8px; border-radius:4px; background: linear-gradient(90deg, var(--accent), #a78bfa); }
+  .prov-val { font-size:12px; color:var(--muted); min-width:80px; text-align:right; }
+  .footer { padding: 24px 40px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">Match<span>move</span> <span style="color:var(--muted);font-weight:400;font-size:16px">/ OPS Intelligence</span></div>
+  <div class="header-meta">Données Corrigées v3 · Mai 2024 → Fév 2026</div>
+</header>
+
+<main class="main">
+
+  <!-- FILTRES -->
+  <div class="filters">
+    <div class="filter-group">
+      <div class="filter-label">Période OPS</div>
+      <select id="f-period" onchange="applyFilters()">
+        <option value="all">Toutes les périodes</option>
+        <option value="2025-02">Fév 2025</option>
+        <option value="2025-03">Mar 2025</option>
+        <option value="2025-04">Avr 2025</option>
+        <option value="2025-05">Mai 2025</option>
+        <option value="2025-06">Juin 2025</option>
+        <option value="2025-07">Juil 2025</option>
+        <option value="2025-08">Août 2025</option>
+        <option value="2025-09">Sep 2025</option>
+        <option value="2025-10">Oct 2025</option>
+        <option value="2025-11">Nov 2025</option>
+        <option value="2025-12">Déc 2025</option>
+        <option value="2026-01">Jan 2026</option>
+        <option value="2026-02">Fév 2026</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Agent OPS</div>
+      <select id="f-agent-ops" onchange="applyFilters()">
+        <option value="all">Tous les agents</option>
+        <option value="MEHDI">MEHDI</option>
+        <option value="IMED">IMED</option>
+        <option value="MARWA DÉBARRAS">MARWA DÉBARRAS</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Agent Commercial</div>
+      <select id="f-agent-sales" onchange="applyFilters()">
+        <option value="all">Tous les agents</option>
+        <option value="HIND">HIND</option>
+        <option value="ASHWAK">ASHWAK</option>
+        <option value="MARWA H">MARWA H</option>
+        <option value="NADIA">NADIA</option>
+        <option value="MOLKA">MOLKA</option>
+        <option value="ALEXIS">ALEXIS</option>
+        <option value="SOUMAYA">SOUMAYA</option>
+        <option value="IMED">IMED</option>
+        <option value="SANNA">SANNA</option>
+        <option value="OUMAYMA">OUMAYMA</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Prestataire OPS</div>
+      <select id="f-presta" onchange="applyFilters()">
+        <option value="all">Tous</option>
+        <option>SM DEM</option><option>Amini Transport</option><option>Smail Mezahim</option>
+        <option>Andrey Gan</option><option>Yanis KBR</option><option>Proben</option>
+        <option>Les Mastodontes</option><option>Mohamed Mouffok</option>
+      </select>
+    </div>
+    <div class="filter-group" style="justify-content:flex-end">
+      <button class="btn" onclick="resetFilters()">↺ Réinitialiser</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi-card" style="--accent-color: var(--accent)">
+      <div class="kpi-label">CA OPS Total</div>
+      <div class="kpi-value" id="kpi-ca">—</div>
+      <div class="kpi-sub" id="kpi-ca-sub">—</div>
+    </div>
+    <div class="kpi-card" style="--accent-color: var(--accent3)">
+      <div class="kpi-label">Marge OPS</div>
+      <div class="kpi-value" id="kpi-marge">—</div>
+      <div class="kpi-sub" id="kpi-marge-sub">—</div>
+    </div>
+    <div class="kpi-card" style="--accent-color: var(--accent2)">
+      <div class="kpi-label">Chantiers OPS</div>
+      <div class="kpi-value" id="kpi-chantiers">—</div>
+      <div class="kpi-sub">dossiers traités</div>
+    </div>
+    <div class="kpi-card" style="--accent-color: #f97316">
+      <div class="kpi-label">CA Sales Total</div>
+      <div class="kpi-value" id="kpi-ca-sales">—</div>
+      <div class="kpi-sub" id="kpi-sales-sub">—</div>
+    </div>
+    <div class="kpi-card" style="--accent-color: #06b6d4">
+      <div class="kpi-label">Panier Moyen OPS</div>
+      <div class="kpi-value" id="kpi-panier">—</div>
+      <div class="kpi-sub">par chantier</div>
+    </div>
+    <div class="kpi-card" style="--accent-color: var(--danger)">
+      <div class="kpi-label">CA APX Leads Fév 26</div>
+      <div class="kpi-value" style="color:var(--accent3)">30 866€</div>
+      <div class="kpi-sub">Nadia + Molka + Ashwak + Soumaya</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('tab-rentabilite', this)">📊 Rentabilité OPS</button>
+    <button class="tab" onclick="showTab('tab-agents', this)">👤 Agents OPS</button>
+    <button class="tab" onclick="showTab('tab-sales', this)">💼 Agents Sales</button>
+    <button class="tab" onclick="showTab('tab-providers', this)">🏷️ Providers Sales</button>
+    <button class="tab" onclick="showTab('tab-prestataires', this)">🔧 Prestataires OPS</button>
+    <button class="tab" onclick="showTab('tab-annulations', this)">❌ Annulations</button>
+    <button class="tab" onclick="showTab('tab-alertes', this)">🚨 Alertes</button>
+  </div>
+
+  <!-- TAB RENTABILITE OPS -->
+  <div id="tab-rentabilite" class="tab-panel active">
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">Évolution mensuelle — CA vs Marge OPS</div>
+        <div class="chart-wrap"><canvas id="chart-monthly"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Répartition CA par Agent OPS</div>
+        <div class="chart-wrap"><canvas id="chart-agents-pie"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top Prestataires — CA Client vs Coût Presta</div>
+      <div class="chart-wrap" style="height:320px"><canvas id="chart-ventes-couts"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TAB AGENTS OPS -->
+  <div id="tab-agents" class="tab-panel">
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">Volume vs Marge — Agents OPS</div>
+        <div class="scatter-legend" id="scatter-legend"></div>
+        <div class="chart-wrap"><canvas id="chart-scatter"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Évolution mensuelle par agent OPS</div>
+        <div class="chart-wrap"><canvas id="chart-ops-monthly-agents"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-head"><h3>Performance Détaillée — Agents OPS</h3></div>
+      <table>
+        <thead><tr>
+          <th>Agent</th><th>Chantiers</th><th>CA Total</th><th>Coût Presta</th>
+          <th>Marge €</th><th>Marge %</th><th>Panier Moyen</th><th>Statut</th>
+        </tr></thead>
+        <tbody id="table-agents-ops"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB AGENTS SALES -->
+  <div id="tab-sales" class="tab-panel">
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">CA Sales par agent — Classement général</div>
+        <div class="chart-wrap"><canvas id="chart-sales-top"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Évolution mensuelle Sales — 5 agents actifs</div>
+        <div class="chart-wrap"><canvas id="chart-sales-trend"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-head"><h3>Classement Agents Sales — Données corrigées</h3></div>
+      <table>
+        <thead><tr>
+          <th>#</th><th>Agent</th><th>CA Total</th><th>Période</th><th>Fév 26</th><th>Statut</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>HIND</strong></td><td><span style="color:var(--accent2)">319 960 €</span></td><td>Mai 24 → Oct 25</td><td><span class="badge badge-warn">—</span></td><td>Historique</td></tr>
+          <tr><td>2</td><td><strong>ASHWAK</strong></td><td><span style="color:var(--accent2)">259 391 €</span></td><td>Déc 24 → Fév 26</td><td><span class="badge badge-good">3 936 €</span></td><td>Active ✅</td></tr>
+          <tr><td>3</td><td><strong>MARWA H</strong></td><td><span style="color:var(--accent2)">147 498 €</span></td><td>Nov 24 → Oct 25</td><td><span class="badge badge-warn">—</span></td><td>Historique</td></tr>
+          <tr><td>4</td><td><strong>NADIA</strong></td><td><span style="color:var(--accent2)">77 258 €</span></td><td>Sep 25 → Fév 26</td><td><span class="badge badge-good">16 740 €</span></td><td>Active ✅ 🔥</td></tr>
+          <tr><td>5</td><td><strong>MOLKA</strong></td><td><span style="color:var(--accent2)">37 205 €</span></td><td>Nov 25 → Fév 26</td><td><span class="badge badge-good">8 162 €</span></td><td>Active ✅</td></tr>
+          <tr><td>6</td><td><strong>ALEXIS</strong></td><td><span style="color:var(--accent2)">24 381 €</span></td><td>Avr 25 → Mai 25</td><td><span class="badge badge-warn">—</span></td><td>Ancien</td></tr>
+          <tr><td>7</td><td><strong>IMED</strong></td><td><span style="color:var(--accent2)">11 325 €</span></td><td>Mai 24 → Juin 24</td><td><span class="badge badge-warn">—</span></td><td>Ancien</td></tr>
+          <tr><td>8</td><td><strong>SANNA</strong></td><td><span style="color:var(--accent2)">5 333 €</span></td><td>Fév 25 → Mar 25</td><td><span class="badge badge-warn">—</span></td><td>Ancien</td></tr>
+          <tr><td>9</td><td><strong>SOUMAYA</strong></td><td><span style="color:var(--accent2)">4 160 €</span></td><td>Jan 26 → Fév 26</td><td><span class="badge badge-good">2 027 €</span></td><td>Active ✅</td></tr>
+          <tr><td>10</td><td><strong>OUMAYMA</strong></td><td><span style="color:var(--accent2)">3 265 €</span></td><td>Oct 24</td><td><span class="badge badge-warn">—</span></td><td>Ancien</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB PROVIDERS SALES -->
+  <div id="tab-providers" class="tab-panel">
+    <div class="section-header">
+      <div class="section-title">Providers — Origine des ventes</div>
+      <div class="section-badge">SALES · 22 MOIS</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">CA par Provider (source d'apport)</div>
+        <div class="chart-wrap"><canvas id="chart-prov-ca"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Volume dossiers par Provider</div>
+        <div class="chart-wrap"><canvas id="chart-prov-vol"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card" style="margin-bottom:24px">
+      <div class="table-head"><h3>Analyse Complète Providers Sales</h3></div>
+      <table>
+        <thead><tr>
+          <th>Provider / Source</th><th>CA Total</th><th>Dossiers</th><th>Panier Moy.</th>
+          <th>Part du CA</th><th>Agents Principaux</th><th>Performance</th>
+        </tr></thead>
+        <tbody id="table-providers"></tbody>
+      </table>
+    </div>
+    <div class="grid-2">
+      <div class="chart-card">
+        <div class="chart-title">Panier moyen par Provider</div>
+        <div class="chart-wrap"><canvas id="chart-prov-panier"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Providers — Répartition en camembert</div>
+        <div class="chart-wrap"><canvas id="chart-prov-pie"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB PRESTATAIRES OPS -->
+  <div id="tab-prestataires" class="tab-panel">
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">Top Prestataires — Nombre de chantiers</div>
+        <div class="chart-wrap"><canvas id="chart-presta-volume"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Taux de Marge par Prestataire</div>
+        <div class="chart-wrap"><canvas id="chart-presta-marge"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-head"><h3>Analyse Prestataires OPS — Rentabilité Détaillée</h3></div>
+      <table>
+        <thead><tr>
+          <th>Prestataire</th><th>Chantiers</th><th>CA Client</th><th>Coût Total</th>
+          <th>Marge Générée</th><th>Taux Marge</th><th>Coût Moy/Chantier</th><th>Performance</th>
+        </tr></thead>
+        <tbody id="table-prestas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB ANNULATIONS -->
+  <div id="tab-annulations" class="tab-panel">
+    <div class="section-header">
+      <div class="section-title">❌ Annulations & Dossiers perdus</div>
+      <div class="section-badge">SALES + OPS</div>
+      <div class="section-line"></div>
+    </div>
+
+    <!-- KPIs annulations -->
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:28px">
+      <div class="kpi-card" style="--accent-color:var(--danger)">
+        <div class="kpi-label">CA Perdu Sales</div>
+        <div class="kpi-value" style="color:var(--danger)">23 841 €</div>
+        <div class="kpi-sub">14 dossiers annulés</div>
+      </div>
+      <div class="kpi-card" style="--accent-color:var(--danger)">
+        <div class="kpi-label">CA Perdu OPS</div>
+        <div class="kpi-value" style="color:var(--danger)">7 596 €</div>
+        <div class="kpi-sub">6 dossiers annulés</div>
+      </div>
+      <div class="kpi-card" style="--accent-color:var(--accent2)">
+        <div class="kpi-label">Total Perdu</div>
+        <div class="kpi-value" style="color:var(--accent2)">31 437 €</div>
+        <div class="kpi-sub">20 dossiers au total</div>
+      </div>
+      <div class="kpi-card" style="--accent-color:var(--muted)">
+        <div class="kpi-label">Taux d'annulation</div>
+        <div class="kpi-value" style="font-size:24px;color:var(--accent2)">~3.1%</div>
+        <div class="kpi-sub">vs CA Sales total</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="ann-card">
+        <div class="ann-header">❌ Annulations Sales — 23 841 €</div>
+        <div class="ann-row"><div><strong>Deborah Miller</strong><div class="ann-month">Sep 2025 · Movinga</div></div><div class="ann-ca">5 217 €</div></div>
+        <div class="ann-row"><div><strong>Pascal Martin</strong><div class="ann-month">Fév 2026 · Matchmove Direct</div></div><div class="ann-ca">5 327 €</div></div>
+        <div class="ann-row"><div><strong>Alice Galliou</strong><div class="ann-month">Fév 2026 · Officiel du Dém.</div></div><div class="ann-ca">1 842 €</div></div>
+        <div class="ann-row"><div><strong>Alice Galliou</strong><div class="ann-month">Nov 2025 · Officiel du Dém.</div></div><div class="ann-ca">1 842 €</div></div>
+        <div class="ann-row"><div><strong>Fabrice PHILIPPE</strong><div class="ann-month">Fév 2026 · Officiel du Dém.</div></div><div class="ann-ca">2 042 €</div></div>
+        <div class="ann-row"><div><strong>Julien Dohet</strong><div class="ann-month">Fév 2026 · Myjugaad</div></div><div class="ann-ca">2 083 €</div></div>
+        <div class="ann-row"><div><strong>Jamin</strong><div class="ann-month">Oct 2025 · Officiel du Dém.</div></div><div class="ann-ca">1 071 €</div></div>
+        <div class="ann-row"><div><strong>Sonia Scifo</strong><div class="ann-month">Mar 2025</div></div><div class="ann-ca">1 500 €</div></div>
+        <div class="ann-row"><div><strong>Gisèle DUVAL</strong><div class="ann-month">Mar 2025 · Super Débarras</div></div><div class="ann-ca">900 €</div></div>
+        <div class="ann-row"><div><strong>Florence Lafleure</strong><div class="ann-month">Mar 2025 · Super Débarras</div></div><div class="ann-ca">858 €</div></div>
+        <div class="ann-row"><div><strong>Julius Mason</strong><div class="ann-month">Mar 2025 · Movinga</div></div><div class="ann-ca">314 €</div></div>
+        <div class="ann-row"><div><strong>Taina Clacer</strong><div class="ann-month">Oct 2025 · Movinga</div></div><div class="ann-ca">333 €</div></div>
+        <div class="ann-row"><div><strong>Aurelien Gras</strong><div class="ann-month">Nov 2025 · Movinga</div></div><div class="ann-ca">225 €</div></div>
+        <div class="ann-row"><div><strong>Yannik Brun</strong><div class="ann-month">Jan 2026 · Matchmove Direct</div></div><div class="ann-ca">288 €</div></div>
+      </div>
+
+      <div>
+        <div class="ann-card" style="margin-bottom:16px">
+          <div class="ann-header" style="color:var(--accent2)">⚠️ Annulations OPS — 7 596 €</div>
+          <div class="ann-row"><div><strong>Fabrice PHILIPPE</strong><div class="ann-month">Fév 2026 · IMED</div></div><div class="ann-ca">2 042 €</div></div>
+          <div class="ann-row"><div><strong>Julien DOHET</strong><div class="ann-month">Fév 2026 · MARWA DÉBARRAS</div></div><div class="ann-ca">2 083 €</div></div>
+          <div class="ann-row"><div><strong>Alice Galliou</strong><div class="ann-month">Nov 2025 · IMED</div></div><div class="ann-ca">1 842 €</div></div>
+          <div class="ann-row"><div><strong>Jamin</strong><div class="ann-month">Oct 2025 · IMED</div></div><div class="ann-ca">1 071 €</div></div>
+          <div class="ann-row"><div><strong>Taina Clacer</strong><div class="ann-month">Oct 2025 · IMED</div></div><div class="ann-ca">333 €</div></div>
+          <div class="ann-row"><div><strong>Aurelien Gras</strong><div class="ann-month">Nov 2025 · MARWA DÉBARRAS</div></div><div class="ann-ca">225 €</div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Annulations par provider (Sales)</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="chart-ann-prov"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box" style="background:rgba(255,77,109,0.06);border-color:rgba(255,77,109,0.25)">
+      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:16px;color:var(--danger)">🔍 Analyse des annulations</div>
+      <div class="alert-item">
+        <div class="alert-icon">📌</div>
+        <div class="alert-text">
+          <strong>Fév 2026 : mois le plus impacté</strong>
+          <span>4 annulations Sales en février 2026 pour 11 293€ perdus — à surveiller si tendance de fond ou cas isolés liés aux prestataires Officiel du Dém. et Myjugaad.</span>
+        </div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-icon">🔄</div>
+        <div class="alert-text">
+          <strong>Alice Galliou — dossier annulé deux fois</strong>
+          <span>Ce client apparaît en annulation Nov 2025 ET Fév 2026. À investiguer : problème prestataire récurrent ou client difficile ?</span>
+        </div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-icon">💡</div>
+        <div class="alert-text">
+          <strong>Taux de 3.1% — acceptable mais à surveiller</strong>
+          <span>Le taux d'annulation reste raisonnable sur 22 mois. Le pic de mars 2025 (4 annulations simultanées) suggère un problème ponctuel de qualification. Mettre en place un suivi annulation mensuel.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB ALERTES -->
+  <div id="tab-alertes" class="tab-panel">
+    <div id="alerts-container"></div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  Dashboard Matchmove v3 · Données corrigées · OPS (Fév 2025 → Fév 2026) + Sales (Mai 2024 → Fév 2026) · 10 agents commerciaux · CA APX Leads Fév 26 = 30 866€ ✓
+</footer>
+
+<script>
+Chart.defaults.color = '#6b6b8a';
+Chart.defaults.borderColor = '#2a2a3d';
+Chart.defaults.font.family = "'DM Mono', monospace";
+
+const fmt = n => n >= 1000000 ? (n/1000000).toFixed(1)+'M€' : n >= 1000 ? (n/1000).toFixed(0)+'k€' : n.toFixed(0)+'€';
+const fmtFull = n => new Intl.NumberFormat('fr-FR', {style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+// ====== CORRECTED DATA ======
+const OPS_MONTHLY = {
+  'Fév 25': {MEHDI:{ca:21333,marge:5056},IMED:{ca:6167,marge:1369},'MARWA DÉBARRAS':{ca:10072,marge:3791}},
+  'Mar 25': {MEHDI:{ca:13652,marge:3235},IMED:{ca:16645,marge:3396},'MARWA DÉBARRAS':{ca:7238,marge:2606}},
+  'Avr 25': {MEHDI:{ca:31097,marge:7650},IMED:{ca:17750,marge:4331},'MARWA DÉBARRAS':{ca:16905,marge:6121}},
+  'Mai 25': {MEHDI:{ca:44082,marge:16310},IMED:{ca:32477,marge:8574},'MARWA DÉBARRAS':{ca:16849,marge:6588}},
+  'Juin 25':{MEHDI:{ca:35576,marge:10780},IMED:{ca:38806,marge:10749},'MARWA DÉBARRAS':{ca:18137,marge:7708}},
+  'Juil 25':{MEHDI:{ca:37854,marge:10117},IMED:{ca:9650,marge:2750},'MARWA DÉBARRAS':{ca:19562,marge:7903}},
+  'Août 25':{IMED:{ca:28261,marge:8224},'MARWA DÉBARRAS':{ca:7999,marge:3112}},
+  'Sep 25': {MEHDI:{ca:18148,marge:4737},IMED:{ca:29551,marge:8570},'MARWA DÉBARRAS':{ca:10946,marge:4313}},
+  'Oct 25': {MEHDI:{ca:27160,marge:7496},IMED:{ca:20413,marge:6389},'MARWA DÉBARRAS':{ca:14949,marge:5292}},
+  'Nov 25': {MEHDI:{ca:15346,marge:4005},IMED:{ca:13833,marge:4191},'MARWA DÉBARRAS':{ca:11397,marge:4491}},
+  'Déc 25': {MEHDI:{ca:15237,marge:4327},IMED:{ca:27604,marge:8474},'MARWA DÉBARRAS':{ca:13152,marge:4984}},
+  'Jan 26': {MEHDI:{ca:17242,marge:5810},IMED:{ca:16783,marge:5203}},
+  'Fév 26': {MEHDI:{ca:11079,marge:4409},IMED:{ca:4533,marge:1764}},
+};
+
+const SALES_MONTHLY = {
+  'Mai 24':  {HIND:10594, IMED:2908},
+  'Juin 24': {HIND:12782, IMED:8417},
+  'Juil 24': {HIND:23775},
+  'Août 24': {HIND:3483},
+  'Sep 24':  {HIND:14690},
+  'Oct 24':  {HIND:6007, OUMAYMA:3265},
+  'Nov 24':  {'MARWA H':1767},
+  'Déc 24':  {ASHWAK:15034},
+  'Jan 25':  {ASHWAK:20837, HIND:13313},
+  'Fév 25':  {ASHWAK:15824, SANNA:1708, 'MARWA H':1725, HIND:17749},
+  'Mar 25':  {ASHWAK:15510, SANNA:3624, 'MARWA H':2275, HIND:15123},
+  'Avr 25':  {ALEXIS:20422, HIND:30121, 'MARWA H':15208},
+  'Mai 25':  {ASHWAK:35322, HIND:26743, 'MARWA H':31344, ALEXIS:3958},
+  'Juin 25': {ASHWAK:31200, HIND:23407, 'MARWA H':31031},
+  'Juil 25': {ASHWAK:30408, HIND:23595, 'MARWA H':10979},
+  'Août 25': {ASHWAK:20545, HIND:15169, 'MARWA H':25209},
+  'Sep 25':  {HIND:20413, ASHWAK:11694, 'MARWA H':20160, NADIA:1120},
+  'Oct 25':  {ASHWAK:22364, HIND:25002, 'MARWA H':7800, NADIA:8348},
+  'Nov 25':  {HIND:16646, ASHWAK:5983, NADIA:15588, MOLKA:20000},
+  'Déc 25':  {ASHWAK:15625, HIND:21347, NADIA:13325, MOLKA:5566},
+  'Jan 26':  {ASHWAK:15108, NADIA:22137, SOUMAYA:2133, MOLKA:3476},
+  'Fév 26':  {ASHWAK:3936, NADIA:16740, SOUMAYA:2027, MOLKA:8162},
+};
+
+const SALES_PROVIDERS = [
+  {name:'Officiel du Dém.', ca:288385, count:221, agents:['HIND','ASHWAK','NADIA','MARWA H','ALEXIS']},
+  {name:'Movinga',          ca:155803, count:128, agents:['ASHWAK','HIND','MARWA H','NADIA','ALEXIS']},
+  {name:'Matchmove Direct', ca:145650, count:171, agents:['ASHWAK','HIND','IMED','NADIA','OUMAYMA']},
+  {name:'Autre',            ca:141259, count:105, agents:['HIND','ASHWAK','NADIA','IMED']},
+  {name:'Super Débarras',   ca:42918,  count:62,  agents:['HIND','ASHWAK','MARWA H']},
+  {name:'Agence Immo Part.',ca:22048,  count:12,  agents:['HIND','ASHWAK','IMED']},
+  {name:'Allo Dém.',        ca:13398,  count:11,  agents:['HIND','ASHWAK']},
+  {name:'LAD',              ca:13196,  count:17,  agents:['MARWA H','ASHWAK','SANNA']},
+  {name:'Maison Débarras',  ca:11960,  count:9,   agents:['HIND','ASHWAK']},
+  {name:'Myjugaad',         ca:9137,   count:6,   agents:['ASHWAK','NADIA']},
+  {name:'Mes Alloc',        ca:8330,   count:6,   agents:['HIND','ASHWAK']},
+  {name:'Bon Débarras',     ca:7192,   count:2,   agents:['HIND','OUMAYMA']},
+];
+
+const OPS_PRESTAS = [
+  {name:'SM DEM',          count:52,  ca:51218, cost:31737},
+  {name:'Yanis KBR',       count:68,  ca:51082, cost:34834},
+  {name:'Andrey Gan',      count:57,  ca:50477, cost:34642},
+  {name:'Les Mastodontes', count:28,  ca:55391, cost:40962},
+  {name:'Smail Mezahim',   count:58,  ca:42868, cost:27641},
+  {name:'Amini Transport', count:24,  ca:29328, cost:20618},
+  {name:'Proben',          count:20,  ca:29325, cost:22774},
+  {name:'Mohamed Mouffok', count:19,  ca:26913, cost:19548},
+  {name:'Milan',           count:12,  ca:11967, cost:8601},
+  {name:'IWI Transports',  count:10,  ca:11475, cost:8009},
+  {name:'Chawki Abidi',    count:3,   ca:4993,  cost:3926},
+  {name:'LBG Dém.',        count:2,   ca:1717,  cost:1322},
+];
+
+// ====== OPS DATA for filters ======
+const OPS_MONTHS = Object.keys(OPS_MONTHLY);
+const OPS_AGENTS = ['MEHDI','IMED','MARWA DÉBARRAS'];
+const SALES_MONTHS = Object.keys(SALES_MONTHLY);
+const SALES_AGENTS_ORDER = ['HIND','ASHWAK','MARWA H','NADIA','MOLKA','ALEXIS','IMED','SANNA','SOUMAYA','OUMAYMA'];
+
+function getOpsFiltered() {
+  const period = document.getElementById('f-period').value;
+  const agent = document.getElementById('f-agent-ops').value;
+  const presta = document.getElementById('f-presta').value;
+  let result = [];
+  Object.entries(OPS_MONTHLY).forEach(([month, agents]) => {
+    const p = monthToperiod(month);
+    if (period !== 'all' && p !== period) return;
+    Object.entries(agents).forEach(([ag, d]) => {
+      if (agent !== 'all' && ag !== agent) return;
+      result.push({month, agent:ag, ca:d.ca, marge:d.marge});
+    });
+  });
+  return result;
+}
+
+function monthToperiod(m) {
+  const map = {'Fév 25':'2025-02','Mar 25':'2025-03','Avr 25':'2025-04','Mai 25':'2025-05',
+               'Juin 25':'2025-06','Juil 25':'2025-07','Août 25':'2025-08','Sep 25':'2025-09',
+               'Oct 25':'2025-10','Nov 25':'2025-11','Déc 25':'2025-12','Jan 26':'2026-01','Fév 26':'2026-02'};
+  return map[m] || m;
+}
+
+function getSalesFiltered() {
+  const agent = document.getElementById('f-agent-sales').value;
+  let result = [];
+  Object.entries(SALES_MONTHLY).forEach(([month, agents]) => {
+    Object.entries(agents).forEach(([ag, ca]) => {
+      if (agent !== 'all' && ag !== agent) return;
+      result.push({month, agent:ag, ca});
+    });
+  });
+  return result;
+}
+
+function applyFilters() {
+  const ops = getOpsFiltered();
+  const sales = getSalesFiltered();
+  updateKPIs(ops, sales);
+  updateChartMonthly(ops);
+  updateChartAgentsPie(ops);
+  updateChartVentesCouts();
+  updateChartScatter(ops);
+  updateChartOpsMontlyAgents(ops);
+  updateTableAgents(ops);
+  updateTablePrestas();
+  updateChartProviders();
+  updateTableProviders();
+  updateAlerts(ops, sales);
+  updateChartSales(sales);
+}
+
+function resetFilters() {
+  document.getElementById('f-period').value = 'all';
+  document.getElementById('f-agent-ops').value = 'all';
+  document.getElementById('f-agent-sales').value = 'all';
+  document.getElementById('f-presta').value = 'all';
+  applyFilters();
+}
+
+// KPIs
+function updateKPIs(ops, sales) {
+  const totalCA = ops.reduce((s,r) => s+r.ca, 0);
+  const totalMarge = ops.reduce((s,r) => s+r.marge, 0);
+  const totalSalesCA = sales.reduce((s,r) => s+r.ca, 0);
+  const margePct = totalCA > 0 ? (totalMarge/totalCA*100).toFixed(1) : 0;
+  document.getElementById('kpi-ca').textContent = fmt(totalCA);
+  document.getElementById('kpi-ca-sub').textContent = 'Coût presta: ' + fmt(totalCA - totalMarge);
+  document.getElementById('kpi-marge').textContent = margePct + '%';
+  document.getElementById('kpi-marge-sub').textContent = fmtFull(totalMarge) + ' générés';
+  document.getElementById('kpi-chantiers').textContent = ops.length || '—';
+  document.getElementById('kpi-ca-sales').textContent = fmt(totalSalesCA);
+  document.getElementById('kpi-sales-sub').textContent = sales.length + ' enregistrements';
+  document.getElementById('kpi-panier').textContent = ops.length > 0 ? fmt(totalCA/ops.length) : '—';
+}
+
+// Chart monthly OPS
+function updateChartMonthly(ops) {
+  const monthly = {};
+  ops.forEach(r => {
+    if (!monthly[r.month]) monthly[r.month] = {ca:0, marge:0};
+    monthly[r.month].ca += r.ca;
+    monthly[r.month].marge += r.marge;
+  });
+  const labels = OPS_MONTHS.filter(m => monthly[m]);
+  destroyChart('monthly');
+  charts['monthly'] = new Chart(document.getElementById('chart-monthly'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {label:'CA Client', data: labels.map(m=>monthly[m].ca), backgroundColor:'rgba(124,92,252,0.7)', borderRadius:4},
+        {label:'Marge', data: labels.map(m=>monthly[m].marge), backgroundColor:'rgba(62,207,142,0.7)', borderRadius:4}
+      ]
+    },
+    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}
+  });
+}
+
+// Chart pie OPS agents
+function updateChartAgentsPie(ops) {
+  const agentCA = {};
+  ops.forEach(r => agentCA[r.agent] = (agentCA[r.agent]||0) + r.ca);
+  const entries = Object.entries(agentCA).sort((a,b)=>b[1]-a[1]);
+  destroyChart('pie');
+  charts['pie'] = new Chart(document.getElementById('chart-agents-pie'), {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(e=>e[0]),
+      datasets: [{data: entries.map(e=>e[1]), backgroundColor:['rgba(124,92,252,0.8)','rgba(62,207,142,0.8)','rgba(247,201,72,0.8)'], borderWidth:0}]
+    },
+    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}
+  });
+}
+
+// Chart ventes/couts (top prestas OPS)
+function updateChartVentesCouts() {
+  const top = OPS_PRESTAS.slice(0,10);
+  destroyChart('vc');
+  charts['vc'] = new Chart(document.getElementById('chart-ventes-couts'), {
+    type:'bar', data:{
+      labels: top.map(p=>p.name),
+      datasets:[
+        {label:'CA Client HT', data:top.map(p=>p.ca), backgroundColor:'rgba(124,92,252,0.7)', borderRadius:4},
+        {label:'Coût Presta HT', data:top.map(p=>p.cost), backgroundColor:'rgba(255,77,109,0.7)', borderRadius:4}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{position:'top'}},scales:{x:{ticks:{callback:v=>fmt(v)}}}}
+  });
+}
+
+// Chart scatter OPS agents
+function updateChartScatter(ops) {
+  const agents = {};
+  ops.forEach(r => {
+    if (!agents[r.agent]) agents[r.agent] = {count:0,ca:0,marge:0};
+    agents[r.agent].count++;
+    agents[r.agent].ca += r.ca;
+    agents[r.agent].marge += r.marge;
+  });
+  const colors = ['rgba(124,92,252,0.9)','rgba(62,207,142,0.9)','rgba(247,201,72,0.9)'];
+  const datasets = Object.entries(agents).map(([name,d],i) => ({
+    label: name,
+    data:[{x:d.count, y:d.ca>0?d.marge/d.ca*100:0, r:Math.min(Math.sqrt(d.ca/800),28)+5}],
+    backgroundColor: colors[i%colors.length], borderWidth:0
+  }));
+  document.getElementById('scatter-legend').innerHTML = Object.keys(agents).map((n,i) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${colors[i%colors.length]}"></div>${n}</div>`).join('');
+  destroyChart('scatter');
+  charts['scatter'] = new Chart(document.getElementById('chart-scatter'), {
+    type:'bubble', data:{datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{title:{display:true,text:'Nb enregistrements mensuels'}}, y:{title:{display:true,text:'Marge %'},ticks:{callback:v=>v+'%'}}}}
+  });
+}
+
+// Chart monthly OPS by agent lines
+function updateChartOpsMontlyAgents(ops) {
+  const monthly = {};
+  ops.forEach(r => {
+    if (!monthly[r.month]) monthly[r.month] = {};
+    monthly[r.month][r.agent] = (monthly[r.month][r.agent]||0) + r.ca;
+  });
+  const labels = OPS_MONTHS.filter(m => monthly[m]);
+  const agColors = {'MEHDI':'rgba(124,92,252,1)','IMED':'rgba(62,207,142,1)','MARWA DÉBARRAS':'rgba(247,201,72,1)'};
+  destroyChart('opsMonthAgents');
+  charts['opsMonthAgents'] = new Chart(document.getElementById('chart-ops-monthly-agents'), {
+    type:'line', data:{
+      labels,
+      datasets: OPS_AGENTS.map(ag => ({
+        label:ag, data:labels.map(m=>monthly[m]?.[ag]||0),
+        borderColor:agColors[ag], backgroundColor:agColors[ag]+'22', tension:0.3, pointRadius:3, fill:false
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}
+  });
+}
+
+// Table OPS agents
+function updateTableAgents(ops) {
+  const agents = {};
+  ops.forEach(r => {
+    if (!agents[r.agent]) agents[r.agent] = {count:0,ca:0,marge:0};
+    agents[r.agent].count++;
+    agents[r.agent].ca += r.ca;
+    agents[r.agent].marge += r.marge;
+  });
+  document.getElementById('table-agents-ops').innerHTML = Object.entries(agents).sort((a,b)=>b[1].ca-a[1].ca).map(([name,d]) => {
+    const mp = d.ca > 0 ? d.marge/d.ca*100 : 0;
+    const cost = d.ca - d.marge;
+    const badge = mp >= 35 ? 'badge-good' : mp >= 25 ? 'badge-warn' : 'badge-bad';
+    const status = mp >= 35 ? '🌟 Excellent' : mp >= 25 ? '⚠️ Correct' : '🔴 Faible';
+    return `<tr><td><strong>${name}</strong></td><td>${d.count}</td><td>${fmtFull(d.ca)}</td><td>${fmtFull(cost)}</td><td>${fmtFull(d.marge)}</td><td><span class="badge ${badge}">${mp.toFixed(1)}%</span></td><td>${fmtFull(d.ca/d.count)}</td><td>${status}</td></tr>`;
+  }).join('');
+}
+
+// Table prestas OPS
+function updateTablePrestas() {
+  document.getElementById('table-prestas').innerHTML = OPS_PRESTAS.sort((a,b)=>b.count-a.count).map(p => {
+    const marge = p.ca - p.cost;
+    const mp = p.cost > 0 ? marge/p.ca*100 : 0;
+    const badge = mp >= 30 ? 'badge-good' : mp >= 22 ? 'badge-warn' : 'badge-bad';
+    const perf = mp >= 30 ? '🟢 Excellent' : mp >= 22 ? '🟡 Correct' : '🔴 Sous cible';
+    return `<tr><td><strong>${p.name}</strong></td><td>${p.count}</td><td>${fmtFull(p.ca)}</td><td>${fmtFull(p.cost)}</td><td>${fmtFull(marge)}</td><td><span class="badge ${badge}">${mp.toFixed(1)}%</span></td><td>${fmtFull(p.cost/p.count)}</td><td>${perf}</td></tr>`;
+  }).join('');
+}
+
+// Charts providers sales
+function updateChartProviders() {
+  const totalCA = SALES_PROVIDERS.reduce((s,p)=>s+p.ca,0);
+  const colors = ['rgba(124,92,252,0.8)','rgba(62,207,142,0.8)','rgba(247,201,72,0.8)','rgba(255,77,109,0.8)',
+                  'rgba(59,130,246,0.8)','rgba(251,146,60,0.8)','rgba(217,70,239,0.8)','rgba(20,184,166,0.8)',
+                  'rgba(99,102,241,0.8)','rgba(234,179,8,0.8)','rgba(239,68,68,0.8)','rgba(16,185,129,0.8)'];
+  const top8 = SALES_PROVIDERS.slice(0,8);
+
+  destroyChart('provCA');
+  charts['provCA'] = new Chart(document.getElementById('chart-prov-ca'), {
+    type:'bar', data:{
+      labels: top8.map(p=>p.name),
+      datasets:[{label:'CA €', data:top8.map(p=>p.ca), backgroundColor:colors, borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmt(v)}}}}
+  });
+
+  destroyChart('provVol');
+  charts['provVol'] = new Chart(document.getElementById('chart-prov-vol'), {
+    type:'bar', data:{
+      labels: top8.map(p=>p.name),
+      datasets:[{label:'Dossiers', data:top8.map(p=>p.count), backgroundColor:colors.map(c=>c.replace('0.8','0.6')), borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}}}
+  });
+
+  destroyChart('provPanier');
+  charts['provPanier'] = new Chart(document.getElementById('chart-prov-panier'), {
+    type:'bar', data:{
+      labels: top8.map(p=>p.name),
+      datasets:[{label:'Panier moy €', data:top8.map(p=>Math.round(p.ca/p.count)), backgroundColor:'rgba(247,201,72,0.7)', borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmt(v)}}}}
+  });
+
+  destroyChart('provPie');
+  charts['provPie'] = new Chart(document.getElementById('chart-prov-pie'), {
+    type:'doughnut', data:{
+      labels: SALES_PROVIDERS.map(p=>p.name),
+      datasets:[{data:SALES_PROVIDERS.map(p=>p.ca), backgroundColor:colors, borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}
+  });
+}
+
+// Table providers
+function updateTableProviders() {
+  const totalCA = SALES_PROVIDERS.reduce((s,p)=>s+p.ca,0);
+  document.getElementById('table-providers').innerHTML = SALES_PROVIDERS.map((p,i) => {
+    const panier = Math.round(p.ca/p.count);
+    const part = (p.ca/totalCA*100).toFixed(1);
+    const badge = i < 3 ? 'badge-good' : i < 6 ? 'badge-purple' : 'badge-warn';
+    const perf = i === 0 ? '🥇 Leader' : i < 3 ? '🟢 Fort' : i < 6 ? '🟡 Moyen' : '⚪ Niche';
+    return `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td><span style="color:var(--accent2)">${fmtFull(p.ca)}</span></td>
+      <td>${p.count}</td>
+      <td>${fmtFull(panier)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="background:var(--border);border-radius:3px;height:6px;width:80px;overflow:hidden">
+            <div style="height:6px;border-radius:3px;background:var(--accent);width:${Math.min(part/33*100,100)}%"></div>
+          </div>
+          ${part}%
+        </div>
+      </td>
+      <td style="font-size:11px;color:var(--muted)">${p.agents.slice(0,3).join(', ')}</td>
+      <td><span class="badge ${badge}">${perf}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// Chart Sales agents
+function updateChartSales(sales) {
+  const agentCA = {};
+  sales.forEach(r => agentCA[r.agent] = (agentCA[r.agent]||0) + r.ca);
+  const entries = Object.entries(agentCA).sort((a,b)=>b[1]-a[1]);
+  const colors = ['rgba(247,201,72,0.8)','rgba(124,92,252,0.8)','rgba(62,207,142,0.8)','rgba(255,77,109,0.8)',
+                  'rgba(59,130,246,0.8)','rgba(251,146,60,0.8)','rgba(217,70,239,0.8)'];
+  destroyChart('salesTop');
+  charts['salesTop'] = new Chart(document.getElementById('chart-sales-top'), {
+    type:'bar', data:{
+      labels: entries.map(e=>e[0]),
+      datasets:[{label:'CA Total', data:entries.map(e=>e[1]), backgroundColor:colors, borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}
+  });
+
+  // Trend lines - top 5 actifs
+  const top5 = ['HIND','ASHWAK','MARWA H','NADIA','MOLKA'];
+  const agColors = {HIND:'rgba(124,92,252,1)',ASHWAK:'rgba(62,207,142,1)','MARWA H':'rgba(247,201,72,1)',NADIA:'rgba(59,130,246,1)',MOLKA:'rgba(251,146,60,1)'};
+  destroyChart('salesTrend');
+  charts['salesTrend'] = new Chart(document.getElementById('chart-sales-trend'), {
+    type:'line', data:{
+      labels: SALES_MONTHS,
+      datasets: top5.map(ag => ({
+        label:ag, data:SALES_MONTHS.map(m=>SALES_MONTHLY[m]?.[ag]||0),
+        borderColor:agColors[ag], backgroundColor:agColors[ag]+'22', tension:0.3, pointRadius:2, fill:false, borderWidth:2
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}}},
+      scales:{y:{ticks:{callback:v=>fmt(v)}},x:{ticks:{font:{size:9}}}}}
+  });
+}
+
+// Chart annulations provider
+function initChartAnn() {
+  const annProv = {
+    'Officiel du Dém.': 1071+1842+2042,
+    'Movinga': 5217+314+333+225,
+    'Matchmove Direct': 5327+288,
+    'Myjugaad': 2083,
+    'Super Débarras': 858+900,
+    'Autre': 1500
+  };
+  const entries = Object.entries(annProv).sort((a,b)=>b[1]-a[1]);
+  charts['annProv'] = new Chart(document.getElementById('chart-ann-prov'), {
+    type:'bar', data:{
+      labels: entries.map(e=>e[0]),
+      datasets:[{label:'CA Perdu €', data:entries.map(e=>e[1]), backgroundColor:'rgba(255,77,109,0.7)', borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmt(v)}}}}
+  });
+}
+
+// Presta charts OPS
+function initPrestaCharts() {
+  const colors_marge = OPS_PRESTAS.map(p => {
+    const mp = p.cost > 0 ? (p.ca-p.cost)/p.ca*100 : 0;
+    return mp >= 30 ? 'rgba(62,207,142,0.7)' : mp >= 22 ? 'rgba(247,201,72,0.7)' : 'rgba(255,77,109,0.7)';
+  });
+  destroyChart('prestaVol');
+  charts['prestaVol'] = new Chart(document.getElementById('chart-presta-volume'), {
+    type:'bar', data:{
+      labels: OPS_PRESTAS.map(p=>p.name),
+      datasets:[{label:'Chantiers', data:OPS_PRESTAS.map(p=>p.count), backgroundColor:'rgba(124,92,252,0.7)', borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}}}
+  });
+  destroyChart('prestaMarge');
+  charts['prestaMarge'] = new Chart(document.getElementById('chart-presta-marge'), {
+    type:'bar', data:{
+      labels: OPS_PRESTAS.map(p=>p.name),
+      datasets:[{label:'Marge %', data:OPS_PRESTAS.map(p=>p.cost>0?((p.ca-p.cost)/p.ca*100).toFixed(1):0), backgroundColor:colors_marge, borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>v+'%'}}}}
+  });
+}
+
+// Alerts
+function updateAlerts(ops, sales) {
+  const container = document.getElementById('alerts-container');
+  const agentOps = {};
+  ops.forEach(r => {
+    if (!agentOps[r.agent]) agentOps[r.agent] = {count:0,ca:0,marge:0};
+    agentOps[r.agent].count++; agentOps[r.agent].ca+=r.ca; agentOps[r.agent].marge+=r.marge;
+  });
+  const lowAgents = Object.entries(agentOps).map(([n,d])=>({name:n,pct:d.ca>0?d.marge/d.ca*100:0,ca:d.ca,count:d.count})).filter(a=>a.pct<25&&a.ca>3000).sort((a,b)=>a.pct-b.pct);
+  const topAgents = Object.entries(agentOps).map(([n,d])=>({name:n,pct:d.ca>0?d.marge/d.ca*100:0,ca:d.ca,count:d.count})).filter(a=>a.pct>=30&&a.count>=3).sort((a,b)=>b.pct-a.pct);
+
+  container.innerHTML = `
+  <div class="section-header" style="margin-bottom:20px">
+    <div class="section-title">🚨 Points d'Attention & Recommandations</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="grid-2" style="margin-bottom:24px">
+    <div class="alert-box alert-danger">
+      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:16px;color:var(--danger)">⚠️ Agents OPS — Marge sous cible</div>
+      ${lowAgents.length===0?'<p style="color:var(--muted);font-size:13px">Aucun agent critique dans la sélection.</p>':lowAgents.map(a=>`<div class="alert-item"><div class="alert-icon">🔴</div><div class="alert-text"><strong>${a.name}</strong><span>Marge <b style="color:var(--danger)">${a.pct.toFixed(1)}%</b> sur ${a.count} enreg. — CA: ${fmt(a.ca)}</span></div></div>`).join('')}
+    </div>
+    <div class="alert-box alert-warn">
+      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:16px;color:var(--accent2)">⚡ Prestataires à renégocier</div>
+      <div class="alert-item"><div class="alert-icon">🟡</div><div class="alert-text"><strong>Proben — 22.3% de marge</strong><span>20 chantiers, marge la plus faible des tops. Renégocier ou substituer.</span></div></div>
+      <div class="alert-item"><div class="alert-icon">🟡</div><div class="alert-text"><strong>Chawki Abidi — 21.4%</strong><span>3 chantiers mais sous le seuil de 22%.</span></div></div>
+      <div class="alert-item"><div class="alert-icon">🟡</div><div class="alert-text"><strong>Les Mastodontes — 26%</strong><span>28 chantiers · volume élevé mais marge inférieure aux autres gros prestataires.</span></div></div>
+    </div>
+  </div>
+  <div class="alert-box" style="background:rgba(62,207,142,0.06);border-color:rgba(62,207,142,0.3);margin-bottom:24px">
+    <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:16px;color:var(--accent3)">✅ Top Performers OPS</div>
+    ${topAgents.length===0?'<p style="color:var(--muted)">Filtrez sur plus de périodes.</p>':topAgents.map(a=>`<div class="alert-item"><div class="alert-icon">🌟</div><div class="alert-text"><strong>${a.name}</strong><span>Marge <b style="color:var(--accent3)">${a.pct.toFixed(1)}%</b> · ${a.count} enreg. · CA ${fmt(a.ca)}</span></div></div>`).join('')}
+  </div>
+  <div class="alert-box" style="background:rgba(124,92,252,0.06);border-color:rgba(124,92,252,0.3)">
+    <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:16px;color:var(--accent)">📋 Synthèse stratégique</div>
+    <div class="alert-item"><div class="alert-icon">🔥</div><div class="alert-text"><strong>NADIA — Performance février remarquable</strong><span>16 740€ en fév 26, N°1 du mois. Montée en puissance rapide depuis sep 25. Profil à consolider.</span></div></div>
+    <div class="alert-item"><div class="alert-icon">📦</div><div class="alert-text"><strong>Officiel du Dém. — Provider dominant</strong><span>288k€ · 221 dossiers · 32% du CA Sales. Dépendance forte à surveiller (aussi source d'annulations).</span></div></div>
+    <div class="alert-item"><div class="alert-icon">🧹</div><div class="alert-text"><strong>MARWA DÉBARRAS — Segment le plus rentable</strong><span>38.7% de marge vs 28-29% déménagement. Doubler la capacité de ce segment est une priorité.</span></div></div>
+    <div class="alert-item"><div class="alert-icon">⚙️</div><div class="alert-text"><strong>Risque concentration MEHDI→SM DEM / IMED→Amini</strong><span>Diversifier les prestataires de ces deux agents est urgent pour réduire le risque opérationnel.</span></div></div>
+    <div class="alert-item"><div class="alert-icon">📅</div><div class="alert-text"><strong>Pic Q2 — Préparer dès maintenant</strong><span>Mai-Juin 2025 = 93k€ et 92k€ OPS. Anticiper les capacités prestataires pour Q2 2026.</span></div></div>
+    <div class="alert-item"><div class="alert-icon">❌</div><div class="alert-text"><strong>Annulations Fév 26 = 11 293€ perdus</strong><span>Pic inhabituel d'annulations en février. Enquêter sur les causes (prestataire ? client ?). Alice Galliou annulée 2 fois.</span></div></div>
+  </div>`;
+}
+
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// Init
+applyFilters();
+initChartAnn();
+initPrestaCharts();
+</script>
+</body>
+</html>
